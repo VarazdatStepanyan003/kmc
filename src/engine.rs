@@ -14,12 +14,12 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use super::closet::{IsEnv, IsObs, IsState, IsSystem, Result};
+use super::closet::{IsEnv, IsState, IsSystem, Result};
 
-pub fn simulate<D: IsObs + Clone, S: IsState<D> + Clone, E: IsEnv>(
-    sys: &mut (impl IsSystem<D, S, E> + Clone),
-) -> Vec<Result<D>> {
-    let mut res: Vec<Result<D>> = Vec::new();
+pub fn simulate<S: IsState, E: IsEnv>(
+    sys: &mut impl IsSystem<State = S, Env = E>,
+) -> Vec<Result<S::Obs>> {
+    let mut res: Vec<Result<S::Obs>> = Vec::new();
 
     res.push(sys.get());
     while sys.cond() {

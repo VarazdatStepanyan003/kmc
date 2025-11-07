@@ -16,6 +16,7 @@
 
 #[cfg(test)]
 use crate::engine::simulate;
+use kmc_derive::IsObs;
 use rand::{self, Rng};
 
 pub fn test() -> bool {
@@ -30,17 +31,16 @@ pub fn test() -> bool {
 
 use super::super::closet::{Decision, IsEnv, IsObs, IsState, IsSystem, Result};
 
-#[derive(Clone)]
+#[derive(Clone, IsObs)]
 struct Observables(f32);
-
-impl IsObs for Observables {}
 
 #[derive(Clone)]
 struct State(f32);
 
 impl State {}
 
-impl IsState<Observables> for State {
+impl IsState for State {
+    type Obs = Observables;
     fn get_obs(&self) -> Observables {
         Observables(4.0 * self.0)
     }
@@ -55,7 +55,10 @@ struct System {
     i: f32,
 }
 
-impl IsSystem<Observables, State, Env> for System {
+impl IsSystem for System {
+    type State = State;
+    type Env = Env;
+
     fn new(_: Option<Env>) -> Self {
         System {
             state: State(0.0),

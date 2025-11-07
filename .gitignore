@@ -1,2 +1,3 @@
 /target
+kmc_derive/target
 Cargo.lock
