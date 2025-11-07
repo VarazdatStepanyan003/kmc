@@ -82,12 +82,14 @@ pub fn main() {
 
     res.ready();
 
-    println!("{}", res.to_str());
+    res.to_str();
+    //println!("{}", res.to_str());
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
 
 use kmc::closet::{Decision, IsEnv, IsObs, IsState, IsSystem, Result};
 use kmc::helpers;
+use kmc_derive::IsObs;
 
 struct Results {
     time: Vec<f32>,
@@ -158,13 +160,11 @@ impl Results {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, IsObs)]
 struct Observables {
     pub avg: f32,
     pub corr: f32,
 }
-
-impl IsObs for Observables {}
 
 #[derive(Clone)]
 struct State {
@@ -178,7 +178,8 @@ impl State {
     }
 }
 
-impl IsState<Observables> for State {
+impl IsState for State {
+    type Obs = Observables;
     fn get_obs(&self) -> Observables {
         let mut avg: f32 = 0.0;
         let mut corr: f32 = 0.0;
@@ -212,7 +213,9 @@ struct Ising {
     t_max: f32,
 }
 
-impl IsSystem<Observables, State, Env> for Ising {
+impl IsSystem for Ising {
+    type State = State;
+    type Env = Env;
     fn new(e: Option<Env>) -> Self {
         let env = e.unwrap_or(Env {
             bj: 1.0,
