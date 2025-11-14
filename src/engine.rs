@@ -23,8 +23,10 @@ pub fn simulate<S: IsState, E: IsEnv>(
 
     res.push(sys.get());
     while sys.cond() {
-        sys.step(sys.decide(sys.suggest()));
-        res.push(sys.get());
+        sys.step();
+        if sys.store_cond() {
+            res.push(sys.get());
+        }
     }
     res
 }

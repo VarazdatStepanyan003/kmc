@@ -25,12 +25,6 @@ pub trait IsState: Clone {
     fn get_obs(&self) -> Self::Obs;
 }
 
-// Represent a decision made by the system
-pub enum Decision<S: IsState> {
-    Skip { dt: f32 },
-    Do { dt: f32, dec: S },
-}
-
 // Represent the result of a measurement at a specific time
 #[derive(Clone)]
 pub struct Result<D: IsObs> {
@@ -50,8 +44,7 @@ pub trait IsSystem: Clone {
 
     fn new(e: Option<Self::Env>) -> Self;
     fn get(&self) -> Result<<Self::State as IsState>::Obs>;
-    fn suggest(&self) -> Self::State;
-    fn decide(&self, new: Self::State) -> Decision<Self::State>;
-    fn step(&mut self, dec: Decision<Self::State>);
+    fn step(&mut self);
     fn cond(&self) -> bool;
+    fn store_cond(&mut self) -> bool;
 }
