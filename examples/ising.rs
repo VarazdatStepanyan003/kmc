@@ -87,9 +87,9 @@ pub fn main() {
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
 
-use kmc::closet::{Decision, IsEnv, IsObs, IsState, IsSystem, Result};
+use kmc::closet::{IsEnv, IsObs, IsState, IsSystem, Result};
 use kmc::helpers;
-use kmc_derive::IsObs;
+use kmc_derive::Observable;
 
 struct Results {
     time: Vec<f32>,
@@ -160,7 +160,7 @@ impl Results {
     }
 }
 
-#[derive(Debug, Clone, IsObs)]
+#[derive(Debug, Clone, Observable)]
 struct Observables {
     pub avg: f32,
     pub corr: f32,
@@ -211,6 +211,7 @@ struct Ising {
     bh: f32,
     t: f32,
     t_max: f32,
+    t_store: f32,
 }
 
 impl IsSystem for Ising {
@@ -228,6 +229,7 @@ impl IsSystem for Ising {
             bh: env.bh,
             t: 0.0,
             t_max: env.t_max,
+            t_store: 0.0,
         }
     }
 
@@ -238,35 +240,29 @@ impl IsSystem for Ising {
         }
     }
 
-    fn suggest(&self) -> State {
-        State {
+    fn step(&mut self) {
+        let new = State {
             state: self.state.state ^ (1 << rand::rng().random_range(0..128)),
-        }
-    }
+        };
 
-    fn decide(&self, new: State) -> Decision<State> {
         let mut rng = rand::rng();
         let r =
             helpers::sigmoid(self.state.energy(self.bj, self.bh) - new.energy(self.bj, self.bh));
         let u: f32 = 1.0 - rng.random::<f32>();
         let dt = 1.0 / u / 128.0;
         if rng.random::<f32>() > r {
-            return Decision::Skip { dt };
+            self.t += dt;
+        } else {
+            self.t += dt;
+            self.state = new;
         }
-        Decision::Do { dt, dec: new }
-    }
-
-    fn step(&mut self, dec: Decision<State>) {
-        match dec {
-            Decision::Skip { dt } => self.t += dt,
-            Decision::Do { dt, dec } => {
-                self.t += dt;
-                self.state = dec;
-            }
-        };
     }
 
     fn cond(&self) -> bool {
         self.t < self.t_max
+    }
+
+    fn store_cond(&mut self) -> bool {
+        true
     }
 }

@@ -1,4 +1,4 @@
-# Kinetic Monte Carlo v 0.0.2
+# Kinetic Monte Carlo v 0.0.3
 The English Wiki page is a pretty good place to learn most of the important intro stuff for KMC
 
 ## Usage

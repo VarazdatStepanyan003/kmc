@@ -16,7 +16,7 @@
 
 #[cfg(test)]
 use crate::engine::simulate;
-use kmc_derive::IsObs;
+use kmc_derive::Observable;
 use rand::{self, Rng};
 
 pub fn test() -> bool {
@@ -29,9 +29,9 @@ pub fn test() -> bool {
     false
 }
 
-use super::super::closet::{Decision, IsEnv, IsObs, IsState, IsSystem, Result};
+use super::super::closet::{IsEnv, IsObs, IsState, IsSystem, Result};
 
-#[derive(Clone, IsObs)]
+#[derive(Clone, Observable)]
 struct Observables(f32);
 
 #[derive(Clone)]
@@ -52,7 +52,7 @@ impl IsEnv for Env {}
 #[derive(Clone)]
 struct System {
     state: State,
-    i: f32,
+    i: usize,
 }
 
 impl IsSystem for System {
@@ -62,44 +62,36 @@ impl IsSystem for System {
     fn new(_: Option<Env>) -> Self {
         System {
             state: State(0.0),
-            i: 0.0,
+            i: 0,
         }
     }
 
     fn get(&self) -> Result<Observables> {
         Result {
-            t: self.i,
+            t: self.i as f32,
             obs: self.state.get_obs(),
         }
     }
 
-    fn suggest(&self) -> State {
-        State(self.state.0 + 1.0)
-    }
-
-    fn decide(&self, new: State) -> Decision<State> {
+    fn step(&mut self) {
         let x = rand::rng().random::<f32>();
         let y = rand::rng().random::<f32>();
         if x.powi(2) + y.powi(2) > 1.0 {
-            return Decision::Skip { dt: 1.0 };
+            self.i += 1;
+        } else {
+            self.state = State(self.state.0 + 1.0);
+            self.i += 1;
         }
-        Decision::Do { dt: 1.0, dec: new }
-    }
-
-    fn step(&mut self, dec: Decision<State>) {
-        match dec {
-            Decision::Skip { dt } => self.i += dt,
-            Decision::Do { dt, dec } => {
-                self.i += dt;
-                self.state = dec
-            }
-        };
     }
 
     fn cond(&self) -> bool {
-        if self.i < 100000.0 {
+        if self.i < 100000 {
             return true;
         }
         false
+    }
+
+    fn store_cond(&mut self) -> bool {
+        true
     }
 }
