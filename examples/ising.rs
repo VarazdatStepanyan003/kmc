@@ -99,16 +99,18 @@ struct Results {
 
 impl Results {
     fn new(dt: f32, t_max: f32) -> Results {
+        let size = (t_max / dt).ceil() as usize;
         let mut time: Vec<f32> = Vec::new();
-        let mut obs: Vec<Observables> = Vec::new();
-        let mut am: Vec<u32> = Vec::new();
-        for i in 0..=((t_max / dt).ceil() as usize) {
-            time.push((i as f32) * dt);
-            obs.push(Observables {
+        let obs: Vec<Observables> = vec![
+            Observables {
                 avg: 0.0,
-                corr: 0.0,
-            });
-            am.push(0);
+                corr: 0.0
+            };
+            size
+        ];
+        let am: Vec<u32> = vec![0; size];
+        for i in 0..=size {
+            time.push((i as f32) * dt);
         }
         Results { time, obs, am }
     }
@@ -160,13 +162,13 @@ impl Results {
     }
 }
 
-#[derive(Debug, Clone, Observable)]
+#[derive(Debug, Clone, Copy, Observable)]
 struct Observables {
     pub avg: f32,
     pub corr: f32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct State {
     state: u128,
 }
@@ -204,14 +206,13 @@ struct Env {
 
 impl IsEnv for Env {}
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Ising {
     state: State,
     bj: f32,
     bh: f32,
     t: f32,
     t_max: f32,
-    t_store: f32,
 }
 
 impl IsSystem for Ising {
@@ -229,7 +230,6 @@ impl IsSystem for Ising {
             bh: env.bh,
             t: 0.0,
             t_max: env.t_max,
-            t_store: 0.0,
         }
     }
 
@@ -241,15 +241,14 @@ impl IsSystem for Ising {
     }
 
     fn step(&mut self) {
-        let new = State {
-            state: self.state.state ^ (1 << rand::rng().random_range(0..128)),
-        };
-
         let mut rng = rand::rng();
+        let new = State {
+            state: self.state.state ^ (1 << rng.random_range(0..128)),
+        };
         let r =
             helpers::sigmoid(self.state.energy(self.bj, self.bh) - new.energy(self.bj, self.bh));
-        let u: f32 = 1.0 - rng.random::<f32>();
-        let dt = 1.0 / u / 128.0;
+        let u: f32 = -(1.0 - rng.random::<f32>()).ln();
+        let dt = u / 128.0;
         if rng.random::<f32>() > r {
             self.t += dt;
         } else {
