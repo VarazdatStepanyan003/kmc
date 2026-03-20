@@ -16,14 +16,45 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::{parse, parse_macro_input, Expr, Token};
 
 #[proc_macro_derive(Observable)]
 pub fn obs_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+    let ast: syn::DeriveInput = parse(input).unwrap();
 
     let name = ast.ident;
     quote! {
         impl IsObs for #name {}
+    }
+    .into()
+}
+
+struct ReadStruct {
+    var: Expr,
+    name: Expr,
+}
+
+impl parse::Parse for ReadStruct {
+    fn parse(input: parse::ParseStream) -> syn::Result<Self> {
+        let var: Expr = input.parse().expect("macro first parsing failed");
+        input
+            .parse::<Token![,]>()
+            .expect("macro comma parsing failed");
+        let name: Expr = input.parse().expect("macro third parsing failed");
+        Ok(ReadStruct { var, name })
+    }
+}
+
+#[proc_macro]
+pub fn read_var(input: TokenStream) -> TokenStream {
+    let ReadStruct { var, name } = parse_macro_input!(input as ReadStruct);
+
+    quote! {
+        let mut tmp = String::new();
+        print!("{}: ", stringify!(#name));
+        io::stdout().flush().unwrap();
+        io::stdin().read_line(&mut tmp).expect("unable to read line");
+        #var = tmp.trim().parse().expect("not a valid value")
     }
     .into()
 }

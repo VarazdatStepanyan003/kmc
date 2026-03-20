@@ -15,56 +15,40 @@
 //
 
 use kmc::engine;
-use rand::RngExt;
+use kmc_derive::read_var;
 use rayon::prelude::*;
 use std::io::{self, Write};
 
 pub fn main() {
-    let mut tmp = String::new();
-    print!("max time: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let t_max: f32 = tmp.trim().parse().expect("not a valid max time");
+    let lambda: f32;
+    read_var!(lambda, "Lambda");
 
-    let mut tmp = String::new();
-    print!("dt: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let dt: f32 = tmp.trim().parse().expect("not a valid dt");
+    let del: f32;
+    read_var!(del, "Del");
 
-    let mut tmp = String::new();
-    print!("beta*J: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let bj = tmp.trim().parse().expect("not a valid bj");
+    let a: f32;
+    read_var!(a, "A");
 
-    let mut tmp = String::new();
-    print!("beta*h: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let bh = tmp.trim().parse().expect("not a valid bh");
+    let b: f32;
+    read_var!(b, "B");
 
-    let env = Env { bj, bh, t_max };
-    let sys = Ising::new(Some(env));
+    let dt: f32;
+    read_var!(dt, "dt");
 
-    let mut tmp = String::new();
-    print!("repetitions: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let rep_num: usize = tmp
-        .trim()
-        .parse()
-        .expect("not a valid amount of repetitions");
+    let t_max = 10.0 / lambda;
+
+    let env = Env {
+        lambda,
+        del,
+        a,
+        b,
+        t_max,
+    };
+
+    let sys = System::new(Some(env));
+
+    let rep_num: usize;
+    read_var!(rep_num, "Repetitions");
 
     let mut r: Vec<Vec<Result<Observables>>> = vec![Vec::new(); rep_num];
 
@@ -83,7 +67,7 @@ pub fn main() {
     res.ready();
 
     res.to_str();
-    //println!("{}", res.to_str());
+    println!("{}", res.to_str());
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
 
@@ -101,13 +85,7 @@ impl Results {
     fn new(dt: f32, t_max: f32) -> Results {
         let size = (t_max / dt).ceil() as usize;
         let mut time: Vec<f32> = Vec::new();
-        let obs: Vec<Observables> = vec![
-            Observables {
-                avg: 0.0,
-                corr: 0.0
-            };
-            size
-        ];
+        let obs: Vec<Observables> = vec![Observables { prop: 0.0 }; size];
         let am: Vec<u32> = vec![0; size];
         for i in 0..=size {
             time.push((i as f32) * dt);
@@ -117,8 +95,7 @@ impl Results {
 
     fn add(&mut self, r: Result<Observables>) {
         if let Some(i) = helpers::binary_search(r.t, &self.time) {
-            self.obs[i].avg += r.obs.avg;
-            self.obs[i].corr += r.obs.corr;
+            self.obs[i].prop += r.obs.prop;
             self.am[i] += 1;
         }
     }
@@ -126,8 +103,7 @@ impl Results {
     fn ready(&mut self) {
         self.am.iter().enumerate().rev().for_each(|(i, a)| {
             if *a != 0 {
-                self.obs[i].avg /= *a as f32;
-                self.obs[i].corr /= *a as f32;
+                self.obs[i].prop /= *a as f32;
             } else {
                 self.time.remove(i);
                 self.obs.remove(i);
@@ -145,14 +121,7 @@ impl Results {
         s.push('\n');
 
         self.obs.iter().for_each(|o| {
-            s.push_str(&o.avg.to_string());
-            s.push(',');
-        });
-        s.pop();
-        s.push('\n');
-
-        self.obs.iter().for_each(|o| {
-            s.push_str(&o.corr.to_string());
+            s.push_str(&o.prop.to_string());
             s.push(',');
         });
         s.pop();
@@ -164,70 +133,61 @@ impl Results {
 
 #[derive(Debug, Clone, Copy, Observable)]
 struct Observables {
-    pub avg: f32,
-    pub corr: f32,
+    pub prop: f32,
 }
 
 #[derive(Clone, Copy)]
 struct State {
-    state: u128,
-}
-
-impl State {
-    fn energy(&self, bj: f32, bh: f32) -> f32 {
-        let ob = self.get_obs();
-        -bj * ob.corr - bh * ob.avg
-    }
+    prop: f32,
+    eps: i8,
 }
 
 impl IsState for State {
     type Obs = Observables;
     fn get_obs(&self) -> Observables {
-        let mut avg: f32 = 0.0;
-        let mut corr: f32 = 0.0;
-        for i in 0..127 {
-            avg += ((self.state >> i) & 1) as f32;
-            corr += (((self.state >> i) & 1) * ((self.state >> (i + 1)) & 1)) as f32;
-        }
-        avg += ((self.state >> 127) & 1) as f32;
-        corr += (((self.state >> 127) & 1) * (self.state & 1)) as f32;
-        Observables {
-            avg: 2.0 * avg - 128.0,
-            corr: 4.0 * corr - 4.0 * avg + 128.0,
-        }
+        Observables { prop: self.prop }
     }
 }
 
+#[derive(Clone, Copy)]
 struct Env {
-    bj: f32,
-    bh: f32,
+    lambda: f32,
+    del: f32,
+    a: f32,
+    b: f32,
     t_max: f32,
 }
 
 impl IsEnv for Env {}
 
 #[derive(Clone, Copy)]
-struct Ising {
+struct System {
     state: State,
-    bj: f32,
-    bh: f32,
+    lambda: f32,
+    del: f32,
+    a: f32,
+    b: f32,
     t: f32,
     t_max: f32,
 }
 
-impl IsSystem for Ising {
+impl IsSystem for System {
     type State = State;
     type Env = Env;
     fn new(e: Option<Env>) -> Self {
         let env = e.unwrap_or(Env {
-            bj: 1.0,
-            bh: 0.5,
+            lambda: 1.0,
+            del: 0.5,
+            a: 2.0,
+            b: 0.5,
             t_max: 10.0,
         });
-        Ising {
-            state: State { state: 0 },
-            bj: env.bj,
-            bh: env.bh,
+        System {
+            state: State { prop: 0.5, eps: 1 },
+            lambda: env.lambda,
+            del: env.del,
+            a: env.a,
+            b: env.b,
             t: 0.0,
             t_max: env.t_max,
         }
@@ -241,19 +201,17 @@ impl IsSystem for Ising {
     }
 
     fn step(&mut self) {
-        let mut rng = rand::rng();
-        let new = State {
-            state: self.state.state ^ (1 << rng.random_range(0..128)),
-        };
-        let r =
-            helpers::sigmoid(self.state.energy(self.bj, self.bh) - new.energy(self.bj, self.bh));
-        let u: f32 = -(1.0 - rng.random::<f32>()).ln();
-        let dt = u / 128.0;
-        if rng.random::<f32>() > r {
+        let u: f32 = -(1.0 - rand::random::<f32>()).ln();
+
+        let dt = u / (2.0 * self.lambda);
+
+        self.ode_solv(dt);
+
+        if rand::random::<f32>() > self.lambda + (self.state.eps as f32) * self.del {
             self.t += dt;
         } else {
             self.t += dt;
-            self.state = new;
+            self.state.eps *= -1;
         }
     }
 
@@ -263,5 +221,18 @@ impl IsSystem for Ising {
 
     fn store_cond(&mut self) -> bool {
         true
+    }
+}
+
+impl System {
+    fn ode_solv(&mut self, t: f32) {
+        let h = t / 10.0;
+        for _ in 0..10 {
+            self.state.prop += self.ode(self.state.prop + self.ode(self.state.prop) * h / 2.0) * h;
+        }
+    }
+
+    fn ode(&self, x: f32) -> f32 {
+        x * (1.0 - x) * ((self.state.eps as f32) + self.a - self.b * x)
     }
 }
