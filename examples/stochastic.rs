@@ -14,55 +14,58 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use kmc::engine;
-use kmc_derive::read_var;
-use rayon::prelude::*;
+use kmc::prelude::*;
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub fn main() {
     let lambda: f32;
-    read_var!(lambda, "Lambda");
-
     let del: f32;
-    read_var!(del, "Del");
-
     let a: f32;
-    read_var!(a, "A");
-
     let b: f32;
-    read_var!(b, "B");
-
     let dt: f32;
+
+    read_var!(lambda, "Lambda");
+    read_var!(del, "Del");
+    read_var!(a, "A");
+    read_var!(b, "B");
     read_var!(dt, "dt");
 
     let t_max = 10.0 / lambda;
 
-    let env = Env {
+    let sys = Env {
         lambda,
         del,
         a,
         b,
         t_max,
-    };
-
-    let sys = System::new(Some(env));
+    }
+    .create();
 
     let rep_num: usize;
     read_var!(rep_num, "Repetitions");
 
-    let mut r: Vec<Vec<Result<Observables>>> = vec![Vec::new(); rep_num];
+    let res = Arc::new(Mutex::new(Results::new(dt, t_max)));
+    let mut handles = vec![];
 
-    r.par_iter_mut().for_each(|rt| {
-        *rt = engine::simulate(&mut sys.clone());
-    });
-
-    let mut res = Results::new(dt, t_max);
-
-    r.iter().for_each(|tmp| {
-        tmp.iter().for_each(|rs| {
-            res.add(rs.clone());
+    for _ in 0..rep_num {
+        let resloc = Arc::clone(&res);
+        let mut sysclone = sys;
+        let handle = thread::spawn(move || {
+            for v in engine::simulate(&mut sysclone) {
+                resloc.lock().unwrap().add(v);
+            }
         });
-    });
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let mut res = res.lock().unwrap();
 
     res.ready();
 
@@ -70,10 +73,6 @@ pub fn main() {
     println!("{}", res.to_str());
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
-
-use kmc::closet::{IsEnv, IsObs, IsState, IsSystem, Result};
-use kmc::helpers;
-use kmc_derive::Observable;
 
 struct Results {
     time: Vec<f32>,
@@ -156,6 +155,12 @@ struct Env {
     a: f32,
     b: f32,
     t_max: f32,
+}
+
+impl Env {
+    fn create(self) -> System {
+        System::new(Some(self))
+    }
 }
 
 impl IsEnv for Env {}

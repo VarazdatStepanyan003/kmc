@@ -14,82 +14,54 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use kmc::engine;
+use kmc::prelude::*;
 use rand::RngExt;
-use rayon::prelude::*;
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub fn main() {
-    let mut tmp = String::new();
-    print!("max time: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let t_max: f32 = tmp.trim().parse().expect("not a valid max time");
+    let t_max: f32;
+    let dt: f32;
+    let bj: f32;
+    let bh: f32;
 
-    let mut tmp = String::new();
-    print!("dt: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let dt: f32 = tmp.trim().parse().expect("not a valid dt");
+    read_var!(t_max, "Max Time");
+    read_var!(dt, "dt");
+    read_var!(bj, "βj");
+    read_var!(bh, "βh");
 
-    let mut tmp = String::new();
-    print!("beta*J: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let bj = tmp.trim().parse().expect("not a valid bj");
+    let sys = Env { bj, bh, t_max }.create();
 
-    let mut tmp = String::new();
-    print!("beta*h: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let bh = tmp.trim().parse().expect("not a valid bh");
+    let rep_num: usize;
+    read_var!(rep_num, "Repetitions");
 
-    let env = Env { bj, bh, t_max };
-    let sys = Ising::new(Some(env));
+    let res = Arc::new(Mutex::new(Results::new(dt, t_max)));
+    let mut handles = vec![];
 
-    let mut tmp = String::new();
-    print!("repetitions: ");
-    io::stdout().flush().unwrap();
-    io::stdin()
-        .read_line(&mut tmp)
-        .expect("unable to read line");
-    let rep_num: usize = tmp
-        .trim()
-        .parse()
-        .expect("not a valid amount of repetitions");
-
-    let mut r: Vec<Vec<Result<Observables>>> = vec![Vec::new(); rep_num];
-
-    r.par_iter_mut().for_each(|rt| {
-        *rt = engine::simulate(&mut sys.clone());
-    });
-
-    let mut res = Results::new(dt, t_max);
-
-    r.iter().for_each(|tmp| {
-        tmp.iter().for_each(|rs| {
-            res.add(rs.clone());
+    for _ in 0..rep_num {
+        let resloc = Arc::clone(&res);
+        let mut sysclone = sys;
+        let handle = thread::spawn(move || {
+            for v in engine::simulate(&mut sysclone) {
+                resloc.lock().unwrap().add(v);
+            }
         });
-    });
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let mut res = res.lock().unwrap();
 
     res.ready();
-
     res.to_str();
-    //println!("{}", res.to_str());
+    println!("{}", res.to_str());
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
-
-use kmc::closet::{IsEnv, IsObs, IsState, IsSystem, Result};
-use kmc::helpers;
-use kmc_derive::Observable;
 
 struct Results {
     time: Vec<f32>,
@@ -202,6 +174,12 @@ struct Env {
     bj: f32,
     bh: f32,
     t_max: f32,
+}
+
+impl Env {
+    fn create(self) -> Ising {
+        Ising::new(Some(self))
+    }
 }
 
 impl IsEnv for Env {}

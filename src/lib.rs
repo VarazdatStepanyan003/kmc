@@ -18,7 +18,8 @@
 pub mod closet;
 pub mod engine;
 pub mod helpers;
-pub use kmc_derive::Observable;
+
+pub mod prelude;
 mod tests;
 
 #[cfg(test)]

@@ -13,5 +13,4 @@ publish = false
 
 [dependencies]
 rand = "0.10"
-rayon = "1.11"
 kmc_derive = {path = "kmc_derive"}

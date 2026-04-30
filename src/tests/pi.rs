@@ -15,34 +15,29 @@
 //
 
 #[cfg(test)]
-use crate::engine::simulate;
-use kmc_derive::Observable;
-use rand::{self, Rng};
+use crate::prelude::*;
+use rand::{self, RngExt};
 
 pub fn test() -> bool {
-    let res = simulate(&mut System::new(None));
+    let res = engine::simulate(&mut System::new(None));
     let r = res.last().expect("Critical error in testing: Pi");
-    if (r.obs.0 / r.t - std::f32::consts::PI).abs() < 0.1 {
+    if ((r.obs.0 as f32) / r.t - std::f32::consts::PI).abs() < 0.1 {
         return true;
     }
-    println!("{}", r.obs.0 / r.t);
+    println!("{}", (r.obs.0 as f32) / r.t);
     false
 }
 
-use super::super::closet::{IsEnv, IsObs, IsState, IsSystem, Result};
+#[derive(Clone, Copy, Observable)]
+struct Observables(u32);
 
-#[derive(Clone, Observable)]
-struct Observables(f32);
-
-#[derive(Clone)]
-struct State(f32);
-
-impl State {}
+#[derive(Clone, Copy)]
+struct State(u32);
 
 impl IsState for State {
     type Obs = Observables;
     fn get_obs(&self) -> Observables {
-        Observables(4.0 * self.0)
+        Observables(4 * self.0)
     }
 }
 
@@ -61,7 +56,7 @@ impl IsSystem for System {
 
     fn new(_: Option<Env>) -> Self {
         System {
-            state: State(0.0),
+            state: State(0),
             i: 0,
         }
     }
@@ -76,11 +71,9 @@ impl IsSystem for System {
     fn step(&mut self) {
         let x = rand::rng().random::<f32>();
         let y = rand::rng().random::<f32>();
-        if x.powi(2) + y.powi(2) > 1.0 {
-            self.i += 1;
-        } else {
-            self.state = State(self.state.0 + 1.0);
-            self.i += 1;
+        self.i += 1;
+        if x.powi(2) + y.powi(2) <= 1.0 {
+            self.state.0 += 1;
         }
     }
 
@@ -92,6 +85,6 @@ impl IsSystem for System {
     }
 
     fn store_cond(&mut self) -> bool {
-        true
+        self.i == 100000
     }
 }
