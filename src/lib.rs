@@ -24,7 +24,7 @@ mod tests;
 
 #[cfg(test)]
 mod lib {
-    use super::tests::pi;
+    use crate::tests::pi;
 
     #[test]
     fn calculate_pi() {

@@ -14,7 +14,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use super::closet::{IsEnv, IsState, IsSystem, Result};
+use crate::closet::{IsEnv, IsState, IsSystem, Result};
 
 pub fn simulate<S: IsState, E: IsEnv>(
     sys: &mut impl IsSystem<State = S, Env = E>,
