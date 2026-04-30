@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2025 Varazdat Stepanyan.
+// Copyright (c) 2025-2026 Varazdat Stepanyan.
 //
 // This file is part of KMC, an open-source engine for kinetic
 // monte carlo simulations. KMC is free software: you can redistribute
