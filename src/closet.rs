@@ -16,17 +16,17 @@
 
 pub trait IsEnv {} // Mark as a collection of env info
 
-pub trait IsObs: Clone {} // Mark as a collection of observables
+pub trait IsObs: Copy {} // Mark as a collection of observables
 
 // Mark as a physical state
 //      get_obs: makes a weak measurement on the state which returns the observed values
-pub trait IsState: Clone {
+pub trait IsState: Copy {
     type Obs: IsObs;
     fn get_obs(&self) -> Self::Obs;
 }
 
 // Represent the result of a measurement at a specific time
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Result<D: IsObs> {
     pub t: f32,
     pub obs: D,
@@ -38,7 +38,7 @@ pub struct Result<D: IsObs> {
 //  =>  decide: processes the suggestionn and decides whether to change the state of the system =>
 //  =>  step: processes the decision applying the changes to the state
 //      cond: whether the simulation should stop
-pub trait IsSystem: Clone {
+pub trait IsSystem {
     type State: IsState;
     type Env: IsEnv;
 

@@ -20,11 +20,11 @@ use rand::{self, RngExt};
 
 pub fn test() -> bool {
     let res = engine::simulate(&mut System::new(None));
-    let r = res.last().expect("Critical error in testing: Pi");
-    if ((r.obs.0 as f32) / r.t - std::f32::consts::PI).abs() < 0.1 {
+    let res = res.last().expect("Critical error in testing: Pi");
+    if ((res.obs.0 as f32) / res.t - std::f32::consts::PI).abs() < 0.1 {
         return true;
     }
-    println!("{}", (r.obs.0 as f32) / r.t);
+    println!("{}", (res.obs.0 as f32) / res.t);
     false
 }
 
@@ -44,7 +44,6 @@ impl IsState for State {
 struct Env(f32);
 impl IsEnv for Env {}
 
-#[derive(Clone)]
 struct System {
     state: State,
     i: usize,

@@ -27,7 +27,7 @@ pub fn main() {
     let bh: f32;
 
     read_var!(t_max, "Max Time");
-    read_var!(dt, "dt");
+    read_var!(dt, "δt");
     read_var!(bj, "βj");
     read_var!(bh, "βh");
 

@@ -26,11 +26,11 @@ pub fn main() {
     let b: f32;
     let dt: f32;
 
-    read_var!(lambda, "Lambda");
-    read_var!(del, "Del");
+    read_var!(lambda, "Λ");
+    read_var!(del, "Δ");
     read_var!(a, "A");
     read_var!(b, "B");
-    read_var!(dt, "dt");
+    read_var!(dt, "δt");
 
     let t_max = 10.0 / lambda;
 
