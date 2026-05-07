@@ -136,8 +136,8 @@ impl Results {
 
 #[derive(Debug, Clone, Copy, Observable)]
 struct Observables {
-    pub avg: f32,
-    pub corr: f32,
+    avg: f32,
+    corr: f32,
 }
 
 #[derive(Clone, Copy)]
