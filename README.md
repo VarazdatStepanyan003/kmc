@@ -1,5 +1,9 @@
-# Kinetic Monte Carlo v 0.0.5
-The English Wiki page is a pretty good place to learn most of the important intro stuff for KMC
+# MetroFerris v 0.1.0
+
+## The name
+MetroFerris is named after the metropolis algorithm and the rust Ferris mascot
+
+The English Wiki page is a pretty good place to learn most of the important intro stuff for kinetic monte carlo.
 
 ## Usage
 The files in the examples/ folder showcase how to use this library

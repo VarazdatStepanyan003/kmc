@@ -1,20 +1,20 @@
 //
 // Copyright (c) 2025-2026 Varazdat Stepanyan.
 //
-// This file is part of KMC, an open-source engine for kinetic
-// monte carlo simulations. KMC is free software: you can redistribute
+// This file is part of MetroFerris, an open-source engine for kinetic
+// monte carlo (and beyond) simulations. MetroFerris is free software: you can redistribute
 // it and/or modify it under the terms of the GNU General Public License
 // version 3 as published by the Free Software Foundation.
 //
-// KMC is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+// MetroFerris is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 // without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 // See the GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License along with KMC.
+// You should have received a copy of the GNU General Public License along with MetroFerris.
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use kmc::prelude::*;
+use metroferris::prelude::*;
 use rand::RngExt;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
