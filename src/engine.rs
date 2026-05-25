@@ -14,12 +14,13 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use crate::closet::{IsEnv, IsState, IsSystem, Result};
+use crate::closet::{IsEnv, IsModel, IsState, Result};
 
-pub fn simulate<S: IsState, E: IsEnv>(
-    sys: &mut impl IsSystem<State = S, Env = E>,
-) -> Vec<Result<S::Obs>> {
-    let mut res: Vec<Result<S::Obs>> = Vec::new();
+pub fn simulate<E: IsEnv>(
+    sys: &mut E::Model,
+) -> Vec<Result<<<<E as IsEnv>::Model as IsModel>::State as IsState>::Obs>> {
+    let mut res: Vec<Result<<<<E as IsEnv>::Model as IsModel>::State as IsState>::Obs>> =
+        Vec::new();
 
     res.push(sys.get());
     while sys.cond() {

@@ -1,4 +1,4 @@
-# MetroFerris v 0.1.0
+# MetroFerris v 0.1.1
 
 ## The name
 MetroFerris is named after the metropolis algorithm and the rust Ferris mascot

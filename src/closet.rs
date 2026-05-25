@@ -14,7 +14,11 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-pub trait IsEnv {} // Mark as a collection of env info
+// Mark as a collection of env info
+pub trait IsEnv {
+    type Model: IsModel;
+    fn create(self) -> Self::Model;
+}
 
 pub trait IsObs: Copy {} // Mark as a collection of observables
 
@@ -38,11 +42,8 @@ pub struct Result<D: IsObs> {
 //  =>  decide: processes the suggestionn and decides whether to change the state of the system =>
 //  =>  step: processes the decision applying the changes to the state
 //      cond: whether the simulation should stop
-pub trait IsSystem {
+pub trait IsModel {
     type State: IsState;
-    type Env: IsEnv;
-
-    fn new(e: Option<Self::Env>) -> Self;
     fn get(&self) -> Result<<Self::State as IsState>::Obs>;
     fn step(&mut self);
     fn cond(&self) -> bool;

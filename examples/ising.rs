@@ -43,7 +43,7 @@ pub fn main() {
         let resloc = Arc::clone(&res);
         let mut sysclone = sys;
         let handle = thread::spawn(move || {
-            for v in engine::simulate(&mut sysclone) {
+            for v in engine::simulate::<Env>(&mut sysclone) {
                 resloc.lock().unwrap().add(v);
             }
         });
@@ -176,13 +176,18 @@ struct Env {
     t_max: f32,
 }
 
-impl Env {
-    fn create(self) -> Ising {
-        Ising::new(Some(self))
+impl IsEnv for Env {
+    type Model = Ising;
+    fn create(self) -> Self::Model {
+        Ising {
+            state: State { state: 0 },
+            bj: self.bj,
+            bh: self.bh,
+            t: 0.0,
+            t_max: self.t_max,
+        }
     }
 }
-
-impl IsEnv for Env {}
 
 #[derive(Clone, Copy)]
 struct Ising {
@@ -193,24 +198,8 @@ struct Ising {
     t_max: f32,
 }
 
-impl IsSystem for Ising {
+impl IsModel for Ising {
     type State = State;
-    type Env = Env;
-    fn new(e: Option<Env>) -> Self {
-        let env = e.unwrap_or(Env {
-            bj: 1.0,
-            bh: 0.5,
-            t_max: 10.0,
-        });
-        Ising {
-            state: State { state: 0 },
-            bj: env.bj,
-            bh: env.bh,
-            t: 0.0,
-            t_max: env.t_max,
-        }
-    }
-
     fn get(&self) -> Result<Observables> {
         Result {
             t: self.t,

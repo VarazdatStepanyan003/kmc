@@ -1,9 +1,9 @@
 [package]
 edition = "2024"
 name = "metroferris_derive"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Varazdat Stepanyan"]
-description = "A monte carlo engine designed for scientific computing"
+description = "A kinetic monte carlo (and beyond) engine designed for scientific computing"
 readme = "README.md"
 repository = "https://github.com/VarazdatStepanyan003/"
 license = "GPL-3.0-only"

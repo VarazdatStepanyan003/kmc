@@ -53,7 +53,7 @@ pub fn main() {
         let resloc = Arc::clone(&res);
         let mut sysclone = sys;
         let handle = thread::spawn(move || {
-            for v in engine::simulate(&mut sysclone) {
+            for v in engine::simulate::<Env>(&mut sysclone) {
                 resloc.lock().unwrap().add(v);
             }
         });
@@ -157,16 +157,23 @@ struct Env {
     t_max: f32,
 }
 
-impl Env {
-    fn create(self) -> System {
-        System::new(Some(self))
+impl IsEnv for Env {
+    type Model = Stochastic;
+    fn create(self) -> Self::Model {
+        Stochastic {
+            state: State { prop: 0.5, eps: 1 },
+            lambda: self.lambda,
+            del: self.del,
+            a: self.a,
+            b: self.b,
+            t: 0.0,
+            t_max: self.t_max,
+        }
     }
 }
 
-impl IsEnv for Env {}
-
 #[derive(Clone, Copy)]
-struct System {
+struct Stochastic {
     state: State,
     lambda: f32,
     del: f32,
@@ -176,27 +183,8 @@ struct System {
     t_max: f32,
 }
 
-impl IsSystem for System {
+impl IsModel for Stochastic {
     type State = State;
-    type Env = Env;
-    fn new(e: Option<Env>) -> Self {
-        let env = e.unwrap_or(Env {
-            lambda: 1.0,
-            del: 0.5,
-            a: 2.0,
-            b: 0.5,
-            t_max: 10.0,
-        });
-        System {
-            state: State { prop: 0.5, eps: 1 },
-            lambda: env.lambda,
-            del: env.del,
-            a: env.a,
-            b: env.b,
-            t: 0.0,
-            t_max: env.t_max,
-        }
-    }
 
     fn get(&self) -> Result<Observables> {
         Result {
@@ -229,7 +217,7 @@ impl IsSystem for System {
     }
 }
 
-impl System {
+impl Stochastic {
     fn ode_solv(&mut self, t: f32) {
         let h = t / 10.0;
         for _ in 0..10 {

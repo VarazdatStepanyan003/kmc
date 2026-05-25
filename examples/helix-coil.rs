@@ -14,7 +14,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-use metroferris::{helpers::sigmoid, prelude::*};
+use metroferris::prelude::*;
 use rand::RngExt;
 use std::{
     //io::{self, Write},
@@ -37,7 +37,7 @@ pub fn main() {
 
     let (t_max, j, bi, bc, bf) = (3000.0, 1.0, 1.8, 1.5, 1.2);
 
-    let res = engine::simulate(
+    let res: Vec<Result<Observables>> = engine::simulate::<Env>(
         &mut Env {
             j,
             bi,
@@ -70,13 +70,22 @@ struct Env {
     t_max: f32,
 }
 
-impl Env {
+impl IsEnv for Env {
+    type Model = ZB;
     fn create(self) -> ZB {
-        ZB::new(Some(self))
+        ZB {
+            state: State { state: u128::MAX },
+            t: 0.0,
+            j: self.j,
+            bi: self.bi,
+            bc: self.bc,
+            bf: self.bf,
+            t_st: self.t_max / 30.0,
+            t_st_d: self.t_max / 30.0,
+            t_max: self.t_max,
+        }
     }
 }
-
-impl IsEnv for Env {}
 
 #[derive(Clone, Copy, Observable)]
 struct Observables {
@@ -119,30 +128,8 @@ struct ZB {
     t_st_d: f32,
 }
 
-impl IsSystem for ZB {
+impl IsModel for ZB {
     type State = State;
-    type Env = Env;
-    fn new(e: Option<Env>) -> Self {
-        let env = e.unwrap_or(Env {
-            j: 1.0,
-            bi: 1.2,
-            bc: 1.0,
-            bf: 0.8,
-            t_max: 100.0,
-        });
-        ZB {
-            state: State { state: u128::MAX },
-            t: 0.0,
-            j: env.j,
-            bi: env.bi,
-            bc: env.bc,
-            bf: env.bf,
-            t_st: env.t_max / 30.0,
-            t_st_d: env.t_max / 30.0,
-            t_max: env.t_max,
-        }
-    }
-
     fn get(&self) -> Result<Observables> {
         Result {
             t: self.t,
@@ -249,7 +236,7 @@ fn integrate(
     let mut be = beta(t_0 / t_max, bi, bf);
     let mut de = rj * be - rh * (bc - be);
 
-    let mut r = sigmoid(de);
+    let mut r = helpers::sigmoid(de);
 
     let dt = u / r / 10.0;
 
@@ -266,7 +253,7 @@ fn integrate(
         be = beta((t_0 + t + dt) / t_max, bi, bf);
         de = rj * be - rh * (bc - be);
 
-        let rr = sigmoid(de);
+        let rr = helpers::sigmoid(de);
 
         v += dt * (rr + r) / 2.0;
         t += dt;

@@ -19,8 +19,9 @@ use crate::prelude::*;
 use rand::{self, RngExt};
 
 pub fn test() -> bool {
-    let res = engine::simulate(&mut System::new(None));
-    let res = res.last().expect("Critical error in testing: Pi");
+    let e: Env = Env;
+    let res = engine::simulate::<Env>(&mut e.create());
+    let res: Result<Observables> = *res.last().expect("Critical error in testing: Pi");
     if ((res.obs.0 as f32) / res.t - std::f32::consts::PI).abs() < 0.1 {
         return true;
     }
@@ -41,24 +42,24 @@ impl IsState for State {
     }
 }
 
-struct Env(f32);
-impl IsEnv for Env {}
-
-struct System {
-    state: State,
-    i: usize,
-}
-
-impl IsSystem for System {
-    type State = State;
-    type Env = Env;
-
-    fn new(_: Option<Env>) -> Self {
-        System {
+struct Env;
+impl IsEnv for Env {
+    type Model = Pi;
+    fn create(self) -> Self::Model {
+        Pi {
             state: State(0),
             i: 0,
         }
     }
+}
+
+struct Pi {
+    state: State,
+    i: usize,
+}
+
+impl IsModel for Pi {
+    type State = State;
 
     fn get(&self) -> Result<Observables> {
         Result {
