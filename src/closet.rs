@@ -15,6 +15,8 @@
 //
 
 // Mark as a collection of env info
+//      used to initialize the system and passed as a generic to the simulation
+//      to retrieve all the types for the simulation
 pub trait IsEnv {
     type Model: IsModel;
     fn create(self) -> Self::Model;
@@ -30,18 +32,17 @@ pub trait IsState: Copy {
 }
 
 // Represent the result of a measurement at a specific time
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Result<D: IsObs> {
     pub t: f32,
     pub obs: D,
 }
 
 // Mark as a physical system, contais a state as well as a measure of time etc
-//      get_obs: makes a weak measurement on the state of the system which returns the observed values
-//      suggest: provides a new state suggestion =>
-//  =>  decide: processes the suggestionn and decides whether to change the state of the system =>
-//  =>  step: processes the decision applying the changes to the state
-//      cond: whether the simulation should stop
+//      get: makes a weak measurement on the state of the system and returns the Result
+//      step: makes a monte carlo step during the simulation
+//      cond: if true do another step, if false stop the simulation
+//      store_cond: if true store the result of get
 pub trait IsModel {
     type State: IsState;
     fn get(&self) -> Result<<Self::State as IsState>::Obs>;

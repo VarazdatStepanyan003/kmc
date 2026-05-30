@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "metroferris"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Varazdat Stepanyan"]
 description = "A kinetic monte carlo (and beyond) engine designed for scientific computing"
 readme = "README.md"

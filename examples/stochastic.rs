@@ -15,36 +15,44 @@
 //
 
 use metroferris::prelude::*;
-use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::{env, thread};
 
 pub fn main() {
-    let lambda: f32;
-    let del: f32;
-    let a: f32;
-    let b: f32;
-    let dt: f32;
+    let tmp: Vec<String> = env::args().skip(1).collect();
 
-    read_var!(lambda, "Λ");
-    read_var!(del, "Δ");
-    read_var!(a, "A");
-    read_var!(b, "B");
-    read_var!(dt, "δt");
+    let (lambda, del, a, b, c, dt, rep_num): (f32, f32, f32, f32, f32, f32, usize);
 
-    let t_max = 10.0 / lambda;
+    if tmp.len() < 7 {
+        lambda = 1.0;
+        del = 0.5;
+        a = 1.0;
+        b = 0.5;
+        c = 0.5;
+        dt = 0.1;
+        rep_num = 16;
+    } else {
+        lambda = tmp[0].parse::<f32>().expect("Wrong Lambda");
+        del = tmp[1].parse::<f32>().expect("Wrong Delta");
+        assert!(del.abs() <= 1.0);
+        a = tmp[2].parse::<f32>().expect("Wrong A");
+        b = tmp[3].parse::<f32>().expect("Wrong B");
+        c = tmp[4].parse::<f32>().expect("Wrong C");
+        dt = tmp[5].parse::<f32>().expect("Wrong Time Step");
+        rep_num = tmp[6].parse::<usize>().expect("Wrong Repetition Number");
+    }
+
+    let t_max = 100.0 / lambda;
 
     let sys = Env {
         lambda,
         del,
         a,
         b,
+        c,
         t_max,
     }
     .create();
-
-    let rep_num: usize;
-    read_var!(rep_num, "Repetitions");
 
     let res = Arc::new(Mutex::new(Results::new(dt, t_max)));
     let mut handles = vec![];
@@ -154,6 +162,7 @@ struct Env {
     del: f32,
     a: f32,
     b: f32,
+    c: f32,
     t_max: f32,
 }
 
@@ -166,6 +175,7 @@ impl IsEnv for Env {
             del: self.del,
             a: self.a,
             b: self.b,
+            c: self.c,
             t: 0.0,
             t_max: self.t_max,
         }
@@ -179,6 +189,7 @@ struct Stochastic {
     del: f32,
     a: f32,
     b: f32,
+    c: f32,
     t: f32,
     t_max: f32,
 }
@@ -200,12 +211,10 @@ impl IsModel for Stochastic {
 
         self.ode_solv(dt);
 
-        if rand::random::<f32>() > self.lambda + (self.state.eps as f32) * self.del {
-            self.t += dt;
-        } else {
-            self.t += dt;
+        if 2.0 * rand::random::<f32>() < 1.0 + (self.state.eps as f32) * self.del {
             self.state.eps *= -1;
         }
+        self.t += dt;
     }
 
     fn cond(&self) -> bool {
@@ -219,13 +228,18 @@ impl IsModel for Stochastic {
 
 impl Stochastic {
     fn ode_solv(&mut self, t: f32) {
-        let h = t / 10.0;
-        for _ in 0..10 {
+        let mut n = 1;
+        let mut h = t / 10.0;
+        while h * (self.c + self.a) > 0.01 {
+            n += 1;
+            h /= 10.0
+        }
+        for _ in 0..10 * n {
             self.state.prop += self.ode(self.state.prop + self.ode(self.state.prop) * h / 2.0) * h;
         }
     }
 
     fn ode(&self, x: f32) -> f32 {
-        x * (1.0 - x) * ((self.state.eps as f32) + self.a - self.b * x)
+        x * (1.0 - x) * ((self.state.eps as f32) * self.c + self.a - self.b * x)
     }
 }
