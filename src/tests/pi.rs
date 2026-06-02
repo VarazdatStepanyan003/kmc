@@ -16,75 +16,55 @@
 
 #[cfg(test)]
 use crate::prelude::*;
-use rand::{self, RngExt};
+use rand::{self, rngs::ThreadRng, RngExt};
 
 pub fn test() -> bool {
-    let e: Env = Env;
-    let res = engine::simulate::<Env>(&mut e.create());
-    let res: Result<Observables> = *res.last().expect("Critical error in testing: Pi");
-    if ((res.obs.0 as f32) / res.t - std::f32::consts::PI).abs() < 0.1 {
+    let res = engine::simulate(&mut Pi {
+        hit: 0,
+        num: 0,
+        rng: rand::rng(),
+    });
+    let res: Value = *res.last().expect("Critical error in testing: Pi");
+    if (res.0 - std::f32::consts::PI).abs() < 0.1 {
         return true;
     }
-    println!("{}", (res.obs.0 as f32) / res.t);
+    println!("{}", res.0);
     false
 }
 
-#[derive(Clone, Copy, Observable)]
-struct Observables(u32);
-
 #[derive(Clone, Copy)]
-struct State(u32);
-
-impl IsState for State {
-    type Obs = Observables;
-    fn get_obs(&self) -> Observables {
-        Observables(4 * self.0)
-    }
-}
-
-struct Env;
-impl IsEnv for Env {
-    type Model = Pi;
-    fn create(self) -> Self::Model {
-        Pi {
-            state: State(0),
-            i: 0,
-        }
-    }
-}
+struct Value(f32);
 
 struct Pi {
-    state: State,
-    i: usize,
+    hit: usize,
+    num: usize,
+    rng: ThreadRng,
 }
 
 impl IsModel for Pi {
-    type State = State;
+    type Obs = Value;
 
-    fn get(&self) -> Result<Observables> {
-        Result {
-            t: self.i as f32,
-            obs: self.state.get_obs(),
-        }
+    fn get(&self) -> Self::Obs {
+        Value(4.0 * self.hit as f32 / (self.num as f32))
     }
 
     fn step(&mut self) {
-        let x = rand::rng().random::<f32>();
-        let y = rand::rng().random::<f32>();
-        self.i += 1;
+        let x = self.rng.random::<f32>();
+        let y = self.rng.random::<f32>();
+        self.num += 1;
         if x.powi(2) + y.powi(2) <= 1.0 {
-            self.state.0 += 1;
+            self.hit += 1;
         }
     }
 
     fn cond(&self) -> bool {
-        if self.i < 100000 {
+        if self.num < 100000 {
             return true;
         }
         false
     }
 
     fn store_cond(&mut self) -> bool {
-        self.i == 100000
+        !self.cond()
     }
 }

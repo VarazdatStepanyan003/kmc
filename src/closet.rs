@@ -14,38 +14,14 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-// Mark as a collection of env info
-//      used to initialize the system and passed as a generic to the simulation
-//      to retrieve all the types for the simulation
-pub trait IsEnv {
-    type Model: IsModel;
-    fn create(self) -> Self::Model;
-}
-
-pub trait IsObs: Copy {} // Mark as a collection of observables
-
-// Mark as a physical state
-//      get_obs: makes a weak measurement on the state which returns the observed values
-pub trait IsState: Copy {
-    type Obs: IsObs;
-    fn get_obs(&self) -> Self::Obs;
-}
-
-// Represent the result of a measurement at a specific time
-#[derive(Clone, Copy, Debug)]
-pub struct Result<D: IsObs> {
-    pub t: f32,
-    pub obs: D,
-}
-
 // Mark as a physical system, contais a state as well as a measure of time etc
-//      get: makes a weak measurement on the state of the system and returns the Result
+//      get: makes a weak measurement on the state of the system
 //      step: makes a monte carlo step during the simulation
-//      cond: if true do another step, if false stop the simulation
+//      cond: while true do another step, once false stop the simulation
 //      store_cond: if true store the result of get
 pub trait IsModel {
-    type State: IsState;
-    fn get(&self) -> Result<<Self::State as IsState>::Obs>;
+    type Obs;
+    fn get(&self) -> Self::Obs;
     fn step(&mut self);
     fn cond(&self) -> bool;
     fn store_cond(&mut self) -> bool;

@@ -15,44 +15,22 @@
 //
 
 use metroferris::prelude::*;
-use rand::RngExt;
+use rand::{rngs::ThreadRng, RngExt};
 use std::{
-    //io::{self, Write},
     sync::{Arc, Mutex},
     thread,
 };
 
 pub fn main() {
-    //let t_max: f32;
-    //let j: f32;
-    //let bi: f32;
-    //let bc: f32;
-    //let bf: f32;
-    //
-    //read_var!(t_max, "Heating Time");
-    //read_var!(j, "j");
-    //read_var!(bi, "β Initial");
-    //read_var!(bc, "β Critical");
-    //read_var!(bf, "β Final");
-
     let (t_max, j, bi, bc, bf) = (3000.0, 1.0, 1.8, 1.5, 1.2);
 
-    let res: Vec<Result<Observables>> = engine::simulate::<Env>(
-        &mut Env {
-            j,
-            bi,
-            bc,
-            bf,
-            t_max,
-        }
-        .create(),
-    );
+    let res = engine::simulate(&mut ZB::new(j, bi, bc, bf, t_max));
 
     for r in res {
         println!(
             "Helicity: {}, N of domains: {}, β: {}",
-            r.obs.avg,
-            r.obs.doms,
+            r.moms.avg,
+            r.moms.doms,
             beta(r.t / t_max, bi, bf)
         );
     }
@@ -62,62 +40,18 @@ fn beta(t: f32, bi: f32, bf: f32) -> f32 {
     (bf - bi) * t + bi
 }
 
-struct Env {
-    j: f32,
-    bi: f32,
-    bc: f32,
-    bf: f32,
-    t_max: f32,
-}
-
-impl IsEnv for Env {
-    type Model = ZB;
-    fn create(self) -> ZB {
-        ZB {
-            state: State { state: u128::MAX },
-            t: 0.0,
-            j: self.j,
-            bi: self.bi,
-            bc: self.bc,
-            bf: self.bf,
-            t_st: self.t_max / 30.0,
-            t_st_d: self.t_max / 30.0,
-            t_max: self.t_max,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Observable)]
-struct Observables {
+struct Moments {
     avg: f32,
     doms: u8,
 }
 
-#[derive(Clone, Copy)]
-struct State {
-    state: u128,
-}
-
-impl IsState for State {
-    type Obs = Observables;
-    fn get_obs(&self) -> Observables {
-        let mut avg: u8 = 0;
-        let mut corr: u8 = 0;
-        for i in 0..127 {
-            avg += ((self.state >> i) & 1) as u8;
-            corr += (((self.state >> i) & 1) * ((self.state >> (i + 1)) & 1)) as u8;
-        }
-        avg += ((self.state >> 127) & 1) as u8;
-        corr += (((self.state >> 127) & 1) * (self.state & 1)) as u8;
-        Observables {
-            avg: (avg as f32) / 128.0,
-            doms: 4 * avg - 4 * corr,
-        }
-    }
+struct Observables {
+    t: f32,
+    moms: Moments,
 }
 
 struct ZB {
-    state: State,
+    state: u128,
     j: f32,
     bi: f32,
     bc: f32,
@@ -126,21 +60,50 @@ struct ZB {
     t_st: f32,
     t_max: f32,
     t_st_d: f32,
+    rng: ThreadRng,
+}
+
+impl ZB {
+    fn new(j: f32, bi: f32, bc: f32, bf: f32, t_max: f32) -> ZB {
+        ZB {
+            state: u128::MAX,
+            t: 0.0,
+            j,
+            bi,
+            bc,
+            bf,
+            t_max,
+            t_st: t_max / 30.0,
+            t_st_d: t_max / 30.0,
+            rng: rand::rng(),
+        }
+    }
 }
 
 impl IsModel for ZB {
-    type State = State;
-    fn get(&self) -> Result<Observables> {
-        Result {
+    type Obs = Observables;
+    fn get(&self) -> Observables {
+        let mut avg: u8 = 0;
+        let mut corr: u8 = 0;
+        for i in 0..127 {
+            avg += ((self.state >> i) & 1) as u8;
+            corr += (((self.state >> i) & 1) * ((self.state >> (i + 1)) & 1)) as u8;
+        }
+        avg += ((self.state >> 127) & 1) as u8;
+        corr += (((self.state >> 127) & 1) * (self.state & 1)) as u8;
+
+        Observables {
             t: self.t,
-            obs: self.state.get_obs(),
+            moms: Moments {
+                avg: (avg as f32) / 128.0,
+                doms: 4 * avg - 4 * corr,
+            },
         }
     }
 
     fn step(&mut self) {
-        let mut rng = rand::rng();
         let u: Vec<f32> = (0..128)
-            .map(|_| -((1.0 - rng.random::<f32>()).ln()))
+            .map(|_| -((1.0 - self.rng.random::<f32>()).ln()))
             .collect();
 
         let res = Arc::new(Mutex::new([0.0; 128]));
@@ -150,16 +113,16 @@ impl IsModel for ZB {
             let resloc = Arc::clone(&res);
             let u = u[k];
             let (sm, s, sp): (bool, bool, bool);
-            s = self.state.state & (1 << k) > 0;
+            s = self.state & (1 << k) > 0;
             if k == 0 {
-                sp = (self.state.state & (1 << (k + 1))) > 0;
-                sm = (self.state.state & (1 << 127)) > 0;
+                sp = (self.state & (1 << (k + 1))) > 0;
+                sm = (self.state & (1 << 127)) > 0;
             } else {
-                sm = (self.state.state & (1 << (k - 1))) > 0;
+                sm = (self.state & (1 << (k - 1))) > 0;
                 if k == 127 {
-                    sp = (self.state.state & 1) > 0;
+                    sp = (self.state & 1) > 0;
                 } else {
-                    sp = (self.state.state & (1 << (k + 1))) > 0;
+                    sp = (self.state & (1 << (k + 1))) > 0;
                 }
             }
             let (t, t_max, bi, bc, bf, j) = (self.t, self.t_max, self.bi, self.bc, self.bf, self.j);
@@ -187,7 +150,7 @@ impl IsModel for ZB {
             .unwrap();
 
         self.t += delta;
-        self.state.state ^= 1 << res;
+        self.state ^= 1 << res;
     }
 
     fn cond(&self) -> bool {

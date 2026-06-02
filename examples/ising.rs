@@ -15,8 +15,9 @@
 //
 
 use metroferris::prelude::*;
-use rand::RngExt;
+use rand::{rngs::ThreadRng, RngExt};
 use std::io::{self, Write};
+use std::ops::{AddAssign, DivAssign};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -31,19 +32,19 @@ pub fn main() {
     read_var!(bj, "βj");
     read_var!(bh, "βh");
 
-    let sys = Env { bj, bh, t_max }.create();
+    let e = Env { bj, bh, t_max };
 
     let rep_num: usize;
     read_var!(rep_num, "Repetitions");
 
-    let res = Arc::new(Mutex::new(Results::new(dt, t_max)));
+    let res = Arc::new(Mutex::new(Res::new(dt, t_max)));
     let mut handles = vec![];
 
     for _ in 0..rep_num {
         let resloc = Arc::clone(&res);
-        let mut sysclone = sys;
+        let eclone = e;
         let handle = thread::spawn(move || {
-            for v in engine::simulate::<Env>(&mut sysclone) {
+            for v in engine::simulate(&mut eclone.create()) {
                 resloc.lock().unwrap().add(v);
             }
         });
@@ -63,34 +64,27 @@ pub fn main() {
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
 
-struct Results {
+struct Res {
     time: Vec<f32>,
-    obs: Vec<Observables>,
+    moms: Vec<Moments>,
     am: Vec<u32>,
 }
 
-impl Results {
-    fn new(dt: f32, t_max: f32) -> Results {
+impl Res {
+    fn new(dt: f32, t_max: f32) -> Res {
         let size = (t_max / dt).ceil() as usize;
         let mut time: Vec<f32> = Vec::new();
-        let obs: Vec<Observables> = vec![
-            Observables {
-                avg: 0.0,
-                corr: 0.0
-            };
-            size
-        ];
+        let moms: Vec<Moments> = vec![Moments::zero(); size];
         let am: Vec<u32> = vec![0; size];
         for i in 0..=size {
             time.push((i as f32) * dt);
         }
-        Results { time, obs, am }
+        Res { time, moms, am }
     }
 
-    fn add(&mut self, r: Result<Observables>) {
+    fn add(&mut self, r: Observables) {
         if let Some(i) = helpers::binary_search(r.t, &self.time) {
-            self.obs[i].avg += r.obs.avg;
-            self.obs[i].corr += r.obs.corr;
+            self.moms[i] += r.moms;
             self.am[i] += 1;
         }
     }
@@ -98,11 +92,10 @@ impl Results {
     fn ready(&mut self) {
         self.am.iter().enumerate().rev().for_each(|(i, a)| {
             if *a != 0 {
-                self.obs[i].avg /= *a as f32;
-                self.obs[i].corr /= *a as f32;
+                self.moms[i] /= *a as f32;
             } else {
                 self.time.remove(i);
-                self.obs.remove(i);
+                self.moms.remove(i);
             }
         });
     }
@@ -116,14 +109,14 @@ impl Results {
         s.pop();
         s.push('\n');
 
-        self.obs.iter().for_each(|o| {
+        self.moms.iter().for_each(|o| {
             s.push_str(&o.avg.to_string());
             s.push(',');
         });
         s.pop();
         s.push('\n');
 
-        self.obs.iter().for_each(|o| {
+        self.moms.iter().for_each(|o| {
             s.push_str(&o.corr.to_string());
             s.push(',');
         });
@@ -134,27 +127,107 @@ impl Results {
     }
 }
 
-#[derive(Debug, Clone, Copy, Observable)]
-struct Observables {
+#[derive(Clone, Copy)]
+struct Moments {
     avg: f32,
     corr: f32,
 }
 
-#[derive(Clone, Copy)]
-struct State {
-    state: u128,
-}
-
-impl State {
-    fn energy(&self, bj: f32, bh: f32) -> f32 {
-        let ob = self.get_obs();
-        -bj * ob.corr - bh * ob.avg
+impl Moments {
+    fn zero() -> Moments {
+        Moments {
+            avg: 0.0,
+            corr: 0.0,
+        }
     }
 }
 
-impl IsState for State {
+impl AddAssign for Moments {
+    fn add_assign(&mut self, rhs: Self) {
+        self.avg += rhs.avg;
+        self.corr += rhs.corr;
+    }
+}
+
+impl DivAssign<f32> for Moments {
+    fn div_assign(&mut self, rhs: f32) {
+        self.avg /= rhs;
+        self.corr /= rhs;
+    }
+}
+
+struct Observables {
+    t: f32,
+    moms: Moments,
+}
+
+#[derive(Clone, Copy)]
+struct Env {
+    bj: f32,
+    bh: f32,
+    t_max: f32,
+}
+
+impl Env {
+    fn create(self) -> Ising {
+        Ising {
+            state: 0,
+            bj: self.bj,
+            bh: self.bh,
+            t: 0.0,
+            t_max: self.t_max,
+            rng: rand::rng(),
+        }
+    }
+}
+
+struct Ising {
+    state: u128,
+    bj: f32,
+    bh: f32,
+    t: f32,
+    t_max: f32,
+    rng: ThreadRng,
+}
+
+impl Ising {
+    fn energy_diff(&self, j: usize) -> f32 {
+        let (l, c, r): (bool, bool, bool);
+        if j == 0 {
+            (l, c, r) = (
+                (self.state >> 127) & 1 > 0,
+                self.state & 1 > 0,
+                (self.state >> 1) & 1 > 0,
+            );
+        } else if j == 127 {
+            (l, c, r) = (
+                (self.state >> 126) & 1 > 0,
+                (self.state >> 127) & 1 > 0,
+                self.state & 1 > 0,
+            );
+        } else {
+            (l, c, r) = (
+                (self.state >> (j - 1)) & 1 > 0,
+                (self.state >> j) & 1 > 0,
+                (self.state >> (j + 1)) & 1 > 0,
+            );
+        }
+        let mut res = 2.0 * self.bh;
+        if l && r {
+            res += 4.0 * self.bj
+        } else if !(l || r) {
+            res -= 4.0 * self.bj
+        }
+        if !c {
+            res = -res;
+        }
+        res
+    }
+}
+
+impl IsModel for Ising {
     type Obs = Observables;
-    fn get_obs(&self) -> Observables {
+    fn get(&self) -> Observables {
         let mut avg: f32 = 0.0;
         let mut corr: f32 = 0.0;
         for i in 0..127 {
@@ -164,63 +237,22 @@ impl IsState for State {
         avg += ((self.state >> 127) & 1) as f32;
         corr += (((self.state >> 127) & 1) * (self.state & 1)) as f32;
         Observables {
-            avg: 2.0 * avg - 128.0,
-            corr: 4.0 * corr - 4.0 * avg + 128.0,
-        }
-    }
-}
-
-struct Env {
-    bj: f32,
-    bh: f32,
-    t_max: f32,
-}
-
-impl IsEnv for Env {
-    type Model = Ising;
-    fn create(self) -> Self::Model {
-        Ising {
-            state: State { state: 0 },
-            bj: self.bj,
-            bh: self.bh,
-            t: 0.0,
-            t_max: self.t_max,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Ising {
-    state: State,
-    bj: f32,
-    bh: f32,
-    t: f32,
-    t_max: f32,
-}
-
-impl IsModel for Ising {
-    type State = State;
-    fn get(&self) -> Result<Observables> {
-        Result {
+            moms: Moments {
+                avg: 2.0 * avg - 128.0,
+                corr: 4.0 * corr - 4.0 * avg + 128.0,
+            },
             t: self.t,
-            obs: self.state.get_obs(),
         }
     }
 
     fn step(&mut self) {
-        let mut rng = rand::rng();
-        let new = State {
-            state: self.state.state ^ (1 << rng.random_range(0..128)),
-        };
-        let r =
-            helpers::sigmoid(self.state.energy(self.bj, self.bh) - new.energy(self.bj, self.bh));
-        let u: f32 = -(1.0 - rng.random::<f32>()).ln();
+        let j = self.rng.random_range(0..128);
+        let r = helpers::sigmoid(-self.energy_diff(j));
+        let u: f32 = -(1.0 - self.rng.random::<f32>()).ln();
         let dt = u / 128.0;
-        if rng.random::<f32>() > r {
-            self.t += dt;
-        } else {
-            self.t += dt;
-            self.state = new;
+        self.t += dt;
+        if self.rng.random::<f32>() < r {
+            self.state ^= 1 << j;
         }
     }
 

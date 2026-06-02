@@ -15,6 +15,7 @@
 //
 
 use metroferris::prelude::*;
+use rand::{rngs::ThreadRng, RngExt};
 use std::sync::{Arc, Mutex};
 use std::{env, thread};
 
@@ -44,24 +45,23 @@ pub fn main() {
 
     let t_max = 100.0 / lambda;
 
-    let sys = Env {
+    let e = Env {
         lambda,
         del,
         a,
         b,
         c,
         t_max,
-    }
-    .create();
+    };
 
-    let res = Arc::new(Mutex::new(Results::new(dt, t_max)));
+    let res = Arc::new(Mutex::new(Res::new(dt, t_max)));
     let mut handles = vec![];
 
     for _ in 0..rep_num {
         let resloc = Arc::clone(&res);
-        let mut sysclone = sys;
+        let eclone = e;
         let handle = thread::spawn(move || {
-            for v in engine::simulate::<Env>(&mut sysclone) {
+            for v in engine::simulate(&mut eclone.create()) {
                 resloc.lock().unwrap().add(v);
             }
         });
@@ -82,27 +82,27 @@ pub fn main() {
     //std::fs::write("res.txt", res.to_str().as_str()).expect("did not write");
 }
 
-struct Results {
+struct Res {
     time: Vec<f32>,
-    obs: Vec<Observables>,
+    props: Vec<f32>,
     am: Vec<u32>,
 }
 
-impl Results {
-    fn new(dt: f32, t_max: f32) -> Results {
+impl Res {
+    fn new(dt: f32, t_max: f32) -> Res {
         let size = (t_max / dt).ceil() as usize;
         let mut time: Vec<f32> = Vec::new();
-        let obs: Vec<Observables> = vec![Observables { prop: 0.0 }; size];
+        let props: Vec<f32> = vec![0.0; size];
         let am: Vec<u32> = vec![0; size];
         for i in 0..=size {
             time.push((i as f32) * dt);
         }
-        Results { time, obs, am }
+        Res { time, props, am }
     }
 
-    fn add(&mut self, r: Result<Observables>) {
+    fn add(&mut self, r: Observables) {
         if let Some(i) = helpers::binary_search(r.t, &self.time) {
-            self.obs[i].prop += r.obs.prop;
+            self.props[i] += r.prop;
             self.am[i] += 1;
         }
     }
@@ -110,10 +110,10 @@ impl Results {
     fn ready(&mut self) {
         self.am.iter().enumerate().rev().for_each(|(i, a)| {
             if *a != 0 {
-                self.obs[i].prop /= *a as f32;
+                self.props[i] /= *a as f32;
             } else {
                 self.time.remove(i);
-                self.obs.remove(i);
+                self.props.remove(i);
             }
         });
     }
@@ -127,8 +127,8 @@ impl Results {
         s.pop();
         s.push('\n');
 
-        self.obs.iter().for_each(|o| {
-            s.push_str(&o.prop.to_string());
+        self.props.iter().for_each(|o| {
+            s.push_str(&o.to_string());
             s.push(',');
         });
         s.pop();
@@ -138,22 +138,14 @@ impl Results {
     }
 }
 
-#[derive(Debug, Clone, Copy, Observable)]
 struct Observables {
-    pub prop: f32,
+    prop: f32,
+    t: f32,
 }
 
-#[derive(Clone, Copy)]
 struct State {
     prop: f32,
     eps: i8,
-}
-
-impl IsState for State {
-    type Obs = Observables;
-    fn get_obs(&self) -> Observables {
-        Observables { prop: self.prop }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -166,9 +158,8 @@ struct Env {
     t_max: f32,
 }
 
-impl IsEnv for Env {
-    type Model = Stochastic;
-    fn create(self) -> Self::Model {
+impl Env {
+    fn create(self) -> Stochastic {
         Stochastic {
             state: State { prop: 0.5, eps: 1 },
             lambda: self.lambda,
@@ -176,13 +167,14 @@ impl IsEnv for Env {
             a: self.a,
             b: self.b,
             c: self.c,
+            aux: self.c.abs() + self.b.abs() + self.a.abs(),
             t: 0.0,
             t_max: self.t_max,
+            rng: rand::rng(),
         }
     }
 }
 
-#[derive(Clone, Copy)]
 struct Stochastic {
     state: State,
     lambda: f32,
@@ -190,22 +182,24 @@ struct Stochastic {
     a: f32,
     b: f32,
     c: f32,
+    aux: f32,
     t: f32,
     t_max: f32,
+    rng: ThreadRng,
 }
 
 impl IsModel for Stochastic {
-    type State = State;
+    type Obs = Observables;
 
-    fn get(&self) -> Result<Observables> {
-        Result {
+    fn get(&self) -> Observables {
+        Observables {
             t: self.t,
-            obs: self.state.get_obs(),
+            prop: self.state.prop,
         }
     }
 
     fn step(&mut self) {
-        let u: f32 = -(1.0 - rand::random::<f32>()).ln();
+        let u: f32 = -(1.0 - self.rng.random::<f32>()).ln();
 
         let dt = u / (2.0 * self.lambda);
 
@@ -230,11 +224,11 @@ impl Stochastic {
     fn ode_solv(&mut self, t: f32) {
         let mut n = 1;
         let mut h = t / 10.0;
-        while h * (self.c + self.a) > 0.01 {
+        while h * self.aux > 0.01 {
             n += 1;
             h /= 10.0
         }
-        for _ in 0..10 * n {
+        for _ in 0..10i32.pow(n) {
             self.state.prop += self.ode(self.state.prop + self.ode(self.state.prop) * h / 2.0) * h;
         }
     }

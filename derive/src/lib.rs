@@ -18,17 +18,6 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse, parse_macro_input, Expr, Token};
 
-#[proc_macro_derive(Observable)]
-pub fn obs_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = parse(input).unwrap();
-
-    let name = ast.ident;
-    quote! {
-        impl IsObs for #name {}
-    }
-    .into()
-}
-
 struct ReadStruct {
     var: Expr,
     name: Expr,

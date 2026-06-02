@@ -15,4 +15,4 @@
 //
 
 pub use crate::{closet::*, engine, helpers};
-pub use metroferris_derive::{read_var, Observable};
+pub use metroferris_derive::read_var;
